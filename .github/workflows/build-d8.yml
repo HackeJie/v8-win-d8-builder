@@ -1,4 +1,4 @@
-name: Build d8 (Debug, Windows)
+name: Build d8 (Windows)
 
 on:
   workflow_dispatch:
@@ -8,6 +8,14 @@ on:
         required: false
         default: ''
         type: string
+      build_type:
+        description: 'debug or release'
+        required: false
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
 permissions:
   contents: write
@@ -35,6 +43,8 @@ jobs:
           echo "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> "$GITHUB_ENV"
           echo "DEPOT_TOOLS_UPDATE=0" >> "$GITHUB_ENV"
           echo "V8_VERSION=${{ github.event.inputs.v8_version }}" >> "$GITHUB_ENV"
+          echo "BUILD_TYPE=${{ github.event.inputs.build_type }}" >> "$GITHUB_ENV"
+          echo "OUT_DIR=out/${{ github.event.inputs.build_type }}" >> "$GITHUB_ENV"
 
       - name: Fetch V8 source
         shell: bash
@@ -60,49 +70,52 @@ jobs:
         shell: bash
         run: |
           cd build/v8
-          # V8 provides gn/ninja in buildtools/win. Add it to PATH so we use the
-          # real binaries (not the depot_tools wrapper that needs a bootstrapped python).
           export PATH="$PWD/buildtools/win:$PATH"
-          ls buildtools/win/ | head -20
-          gn gen out/debug --args="is_debug=true symbol_level=2 v8_enable_sandbox=false v8_optimized_debug=false v8_enable_backtrace=true v8_enable_disassembler=true v8_enable_object_print=true"
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            GN_ARGS="is_debug=true symbol_level=2 v8_enable_sandbox=false v8_optimized_debug=false v8_enable_backtrace=true v8_enable_disassembler=true v8_enable_object_print=true"
+          else
+            GN_ARGS="is_debug=false symbol_level=1 v8_enable_sandbox=false v8_enable_backtrace=true v8_enable_disassembler=true v8_enable_object_print=true v8_optimized_debug=true"
+          fi
+          gn gen "$OUT_DIR" --args="$GN_ARGS"
 
       - name: Build d8
         shell: bash
         run: |
           cd build/v8
           export PATH="$PWD/buildtools/win:$PATH"
-          ninja -C out/debug d8
+          ninja -C "$OUT_DIR" d8
 
       - name: Upload d8.exe
         uses: actions/upload-artifact@v4
         with:
-          name: d8-${{ env.V8_COMMIT_SHORT }}-debug-win64
+          name: d8-${{ env.V8_COMMIT_SHORT }}-${{ env.BUILD_TYPE }}-win64
           path: |
-            build/v8/out/debug/d8.exe
-            build/v8/out/debug/*.pdb
-            build/v8/out/debug/*.dll
-            build/v8/out/debug/icudtl.dat
-            build/v8/out/debug/snapshot_blob.bin
-            build/v8/out/debug/natives_blob.bin
+            build/v8/${{ env.OUT_DIR }}/d8.exe
+            build/v8/${{ env.OUT_DIR }}/*.pdb
+            build/v8/${{ env.OUT_DIR }}/*.dll
+            build/v8/${{ env.OUT_DIR }}/icudtl.dat
+            build/v8/${{ env.OUT_DIR }}/snapshot_blob.bin
+            build/v8/${{ env.OUT_DIR }}/natives_blob.bin
           retention-days: 90
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v8-${{ env.V8_COMMIT_SHORT }}-debug
-          name: V8 d8 (debug win64) - ${{ env.V8_COMMIT_SHORT }}
+          tag_name: v8-${{ env.V8_COMMIT_SHORT }}-${{ env.BUILD_TYPE }}
+          name: V8 d8 (${{ env.BUILD_TYPE }} win64) - ${{ env.V8_COMMIT_SHORT }}
           body: |
             **V8 Commit:** `${{ env.V8_COMMIT_SHORT }}`
+            **Build Type:** ${{ env.BUILD_TYPE }}
             **Build Date:** ${{ github.event.repository.updated_at }}
-            Windows x64 debug d8 for vulnerability research.
+            Windows x64 ${{ env.BUILD_TYPE }} d8 for vulnerability research.
             Extract all files to the same directory (d8.exe needs the V8 DLLs, icudtl.dat, snapshot_blob.bin and natives_blob.bin).
           files: |
-            build/v8/out/debug/d8.exe
-            build/v8/out/debug/*.pdb
-            build/v8/out/debug/*.dll
-            build/v8/out/debug/icudtl.dat
-            build/v8/out/debug/snapshot_blob.bin
-            build/v8/out/debug/natives_blob.bin
+            build/v8/${{ env.OUT_DIR }}/d8.exe
+            build/v8/${{ env.OUT_DIR }}/*.pdb
+            build/v8/${{ env.OUT_DIR }}/*.dll
+            build/v8/${{ env.OUT_DIR }}/icudtl.dat
+            build/v8/${{ env.OUT_DIR }}/snapshot_blob.bin
+            build/v8/${{ env.OUT_DIR }}/natives_blob.bin
           draft: false
           prerelease: false
         env:
