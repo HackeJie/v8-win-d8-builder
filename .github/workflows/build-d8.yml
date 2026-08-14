@@ -39,13 +39,18 @@ jobs:
       - name: Fetch V8 source
         shell: bash
         run: |
-          set -x
-          which git || echo "git not found"
+          set -e
           mkdir -p build && cd build
           fetch v8
           cd v8
           if [ -n "$V8_VERSION" ]; then
-            git checkout "$V8_VERSION" 2>/dev/null || git fetch origin "$V8_VERSION" && git checkout FETCH_HEAD
+            if ! git checkout "$V8_VERSION" 2>/tmp/coerr; then
+              cat /tmp/coerr
+              git fetch origin "$V8_VERSION"
+              git checkout FETCH_HEAD
+            fi
+            # Re-sync deps for this specific commit.
+            gclient sync
           fi
           echo "V8_COMMIT=$(git log -1 --format='%H')" >> "$GITHUB_ENV"
           echo "V8_COMMIT_SHORT=$(git log -1 --format='%h')" >> "$GITHUB_ENV"
@@ -55,12 +60,17 @@ jobs:
         shell: bash
         run: |
           cd build/v8
+          # V8 provides gn/ninja in buildtools/win. Add it to PATH so we use the
+          # real binaries (not the depot_tools wrapper that needs a bootstrapped python).
+          export PATH="$PWD/buildtools/win:$PATH"
+          ls buildtools/win/ | head -20
           gn gen out/debug --args="is_debug=true symbol_level=2 v8_enable_sandbox=false v8_optimized_debug=false v8_enable_backtrace=true v8_enable_disassembler=true v8_enable_object_print=true"
 
       - name: Build d8
         shell: bash
         run: |
           cd build/v8
+          export PATH="$PWD/buildtools/win:$PATH"
           ninja -C out/debug d8
 
       - name: Upload d8.exe
