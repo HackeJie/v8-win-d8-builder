@@ -26,6 +26,9 @@ jobs:
         run: |
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
           echo "$GITHUB_WORKSPACE/depot_tools" >> "$GITHUB_PATH"
+          # Ensure git is found by depot_tools' python subprocesses on Windows
+          echo "C:/Program Files/Git/cmd" >> "$GITHUB_PATH"
+          echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
           echo "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> "$GITHUB_ENV"
           echo "DEPOT_TOOLS_UPDATE=0" >> "$GITHUB_ENV"
           echo "V8_VERSION=${{ github.event.inputs.v8_version }}" >> "$GITHUB_ENV"
@@ -33,6 +36,8 @@ jobs:
       - name: Fetch V8 source
         shell: bash
         run: |
+          set -x
+          which git || where git || echo "git not found in PATH"
           mkdir -p build && cd build
           fetch v8
           cd v8
