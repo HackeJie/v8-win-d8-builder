@@ -25,10 +25,13 @@ jobs:
         shell: bash
         run: |
           git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          # depot_tools git_cache.py hardcodes 'git.bat' on Windows, but the
+          # file was removed from the repo. Create a shim that forwards to the
+          # system git so gclient can run.
+          printf '@echo off\r\n"C:\\\\Program Files\\\\Git\\\\bin\\\\git.exe" %%*\r\n' > depot_tools/git.bat
           echo "$GITHUB_WORKSPACE/depot_tools" >> "$GITHUB_PATH"
-          # Ensure git is found by depot_tools' python subprocesses on Windows
-          echo "C:/Program Files/Git/cmd" >> "$GITHUB_PATH"
-          echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
+          echo 'C:\Program Files\Git\cmd' >> "$GITHUB_PATH"
+          echo 'C:\Program Files\Git\bin' >> "$GITHUB_PATH"
           echo "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> "$GITHUB_ENV"
           echo "DEPOT_TOOLS_UPDATE=0" >> "$GITHUB_ENV"
           echo "V8_VERSION=${{ github.event.inputs.v8_version }}" >> "$GITHUB_ENV"
@@ -37,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -x
-          which git || where git || echo "git not found in PATH"
+          which git || echo "git not found"
           mkdir -p build && cd build
           fetch v8
           cd v8
