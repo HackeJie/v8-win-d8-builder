@@ -80,6 +80,8 @@ jobs:
           path: |
             build/v8/out/debug/d8.exe
             build/v8/out/debug/*.pdb
+            build/v8/out/debug/*.dll
+            build/v8/out/debug/icudtl.dat
           retention-days: 90
 
       - name: Create Release
@@ -91,9 +93,12 @@ jobs:
             **V8 Commit:** `${{ env.V8_COMMIT_SHORT }}`
             **Build Date:** ${{ github.event.repository.updated_at }}
             Windows x64 debug d8 for vulnerability research.
+            Extract all files to the same directory (d8.exe needs the V8 DLLs and icudtl.dat).
           files: |
             build/v8/out/debug/d8.exe
-            build/v8/out/debug/d8.pdb
+            build/v8/out/debug/*.pdb
+            build/v8/out/debug/*.dll
+            build/v8/out/debug/icudtl.dat
           draft: false
           prerelease: false
         env:
