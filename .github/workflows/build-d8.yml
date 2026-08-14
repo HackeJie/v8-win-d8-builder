@@ -1,0 +1,82 @@
+name: Build d8 (Debug, Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      v8_version:
+        description: 'V8 commit hash or version (e.g., 74b1be3dced3478c21e44fff3746b3480206d76d). Leave empty for latest.'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup depot_tools
+        shell: bash
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$GITHUB_WORKSPACE/depot_tools" >> "$GITHUB_PATH"
+          echo "DEPOT_TOOLS_WIN_TOOLCHAIN=0" >> "$GITHUB_ENV"
+          echo "DEPOT_TOOLS_UPDATE=0" >> "$GITHUB_ENV"
+          echo "V8_VERSION=${{ github.event.inputs.v8_version }}" >> "$GITHUB_ENV"
+
+      - name: Fetch V8 source
+        shell: bash
+        run: |
+          mkdir -p build && cd build
+          fetch v8
+          cd v8
+          if [ -n "$V8_VERSION" ]; then
+            git checkout "$V8_VERSION" 2>/dev/null || git fetch origin "$V8_VERSION" && git checkout FETCH_HEAD
+          fi
+          echo "V8_COMMIT=$(git log -1 --format='%H')" >> "$GITHUB_ENV"
+          echo "V8_COMMIT_SHORT=$(git log -1 --format='%h')" >> "$GITHUB_ENV"
+          git log -1 --format='%s' > /tmp/v8_commit_msg.txt
+
+      - name: Generate build files
+        shell: bash
+        run: |
+          cd build/v8
+          gn gen out/debug --args="is_debug=true symbol_level=2 v8_enable_sandbox=false v8_optimized_debug=false v8_enable_backtrace=true v8_enable_disassembler=true v8_enable_object_print=true"
+
+      - name: Build d8
+        shell: bash
+        run: |
+          cd build/v8
+          ninja -C out/debug d8
+
+      - name: Upload d8.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: d8-${{ env.V8_COMMIT_SHORT }}-debug-win64
+          path: |
+            build/v8/out/debug/d8.exe
+            build/v8/out/debug/*.pdb
+          retention-days: 90
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v8-${{ env.V8_COMMIT_SHORT }}-debug
+          name: V8 d8 (debug win64) - ${{ env.V8_COMMIT_SHORT }}
+          body: |
+            **V8 Commit:** `${{ env.V8_COMMIT_SHORT }}`
+            **Build Date:** ${{ github.event.repository.updated_at }}
+            Windows x64 debug d8 for vulnerability research.
+          files: |
+            build/v8/out/debug/d8.exe
+            build/v8/out/debug/d8.pdb
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
