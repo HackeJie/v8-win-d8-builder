@@ -82,6 +82,8 @@ jobs:
             build/v8/out/debug/*.pdb
             build/v8/out/debug/*.dll
             build/v8/out/debug/icudtl.dat
+            build/v8/out/debug/snapshot_blob.bin
+            build/v8/out/debug/natives_blob.bin
           retention-days: 90
 
       - name: Create Release
@@ -93,12 +95,14 @@ jobs:
             **V8 Commit:** `${{ env.V8_COMMIT_SHORT }}`
             **Build Date:** ${{ github.event.repository.updated_at }}
             Windows x64 debug d8 for vulnerability research.
-            Extract all files to the same directory (d8.exe needs the V8 DLLs and icudtl.dat).
+            Extract all files to the same directory (d8.exe needs the V8 DLLs, icudtl.dat, snapshot_blob.bin and natives_blob.bin).
           files: |
             build/v8/out/debug/d8.exe
             build/v8/out/debug/*.pdb
             build/v8/out/debug/*.dll
             build/v8/out/debug/icudtl.dat
+            build/v8/out/debug/snapshot_blob.bin
+            build/v8/out/debug/natives_blob.bin
           draft: false
           prerelease: false
         env:
